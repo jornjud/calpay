@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CalPay Ultimate - เครื่องคำนวณรายจ่าย</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        /* ใช้ฟอนต์ Kanit เป็นหลัก */
+        body {
+            font-family: 'Kanit', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Custom Styles & Utilities */
+        .btn {
+            @apply inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed;
+        }
+        .btn-primary { @apply text-white bg-blue-600 hover:bg-blue-700 focus:ring-blue-500; }
+        .btn-secondary { @apply text-slate-700 bg-slate-200 hover:bg-slate-300 focus:ring-slate-400; }
+        .btn-danger { @apply text-white bg-red-600 hover:bg-red-700 focus:ring-red-500; }
+        .btn-success { @apply text-white bg-green-600 hover:bg-green-700 focus:ring-green-500; }
+        .input-field { @apply block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm; }
+        .card { @apply bg-white p-5 sm:p-6 rounded-xl shadow-lg border border-slate-100; }
+        .modal { @apply fixed inset-0 bg-slate-900 bg-opacity-75 flex items-center justify-center p-4 z-50 transition-opacity duration-300; }
+        .modal-content { @apply bg-white p-6 rounded-lg shadow-xl w-full max-w-md transform transition-all duration-300 scale-95 opacity-0; }
+        .modal.active .modal-content { @apply scale-100 opacity-100; }
+        #loading-overlay { @apply fixed inset-0 bg-white bg-opacity-80 backdrop-blur-sm flex items-center justify-center z-[100] transition-opacity; }
+        .spinner { @apply w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin; }
+        
+        /* สไตล์สำหรับ view mode toggle */
+        #app-wrapper.mobile-view {
+            max-width: 420px;
+            margin: 1rem auto;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            border: 8px solid #1a202c;
+            overflow: hidden;
+        }
+
+        /* Hide scrollbar but allow scrolling */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="hidden">
+        <div class="flex flex-col items-center">
+            <div class="spinner"></div>
+            <p id="loading-text" class="mt-4 text-slate-600 font-semibold">กำลังโหลด...</p>
+        </div>
+    </div>
+
+    <!-- ===== AUTHENTICATION SECTION ===== -->
+    <div id="auth-section">
+        <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 to-sky-200 p-4">
+            <div class="w-full max-w-md">
+                <div class="text-center mb-8">
+                    <h1 class="text-4xl font-bold text-slate-800">CalPay Ultimate 💸</h1>
+                    <p class="text-slate-600 mt-2">แอปจัดการรายจ่ายส่วนตัวสุดเจ๋ง</p>
+                </div>
+
+                <!-- Login Form -->
+                <div id="login-form" class="card">
+                    <h2 class="text-2xl font-bold text-center text-slate-700 mb-6">เข้าสู่ระบบ</h2>
+                    <form id="login-form-element">
+                        <div class="space-y-4">
+                            <div>
+                                <label for="login-email" class="block text-sm font-medium text-slate-700">อีเมล</label>
+                                <input type="email" id="login-email" required class="input-field mt-1" placeholder="you@example.com">
+                            </div>
+                            <div>
+                                <label for="login-password" class="block text-sm font-medium text-slate-700">รหัสผ่าน</label>
+                                <input type="password" id="login-password" required class="input-field mt-1" placeholder="••••••••">
+                            </div>
+                        </div>
+                        <div class="mt-6">
+                            <button type="submit" class="btn btn-primary w-full">เข้าสู่ระบบ</button>
+                        </div>
+                    </form>
+                    <p class="text-center text-sm text-slate-600 mt-6">
+                        ยังไม่มีบัญชี? <button id="show-register-btn" class="font-medium text-blue-600 hover:text-blue-500">สมัครสมาชิกที่นี่</button>
+                    </p>
+                </div>
+
+                <!-- Register Form (hidden by default) -->
+                <div id="register-form" class="card hidden">
+                    <h2 class="text-2xl font-bold text-center text-slate-700 mb-6">สร้างบัญชีใหม่</h2>
+                    <form id="register-form-element">
+                        <div class="space-y-4">
+                            <div>
+                                <label for="register-email" class="block text-sm font-medium text-slate-700">อีเมล</label>
+                                <input type="email" id="register-email" required class="input-field mt-1" placeholder="you@example.com">
+                            </div>
+                            <div>
+                                <label for="register-password" class="block text-sm font-medium text-slate-700">รหัสผ่าน</label>
+                                <input type="password" id="register-password" required class="input-field mt-1" placeholder="อย่างน้อย 6 ตัวอักษร">
+                            </div>
+                             <div>
+                                <label for="register-confirm-password" class="block text-sm font-medium text-slate-700">ยืนยันรหัสผ่าน</label>
+                                <input type="password" id="register-confirm-password" required class="input-field mt-1" placeholder="••••••••">
+                            </div>
+                        </div>
+                        <div class="mt-6">
+                            <button type="submit" class="btn btn-primary w-full">สมัครสมาชิก</button>
+                        </div>
+                    </form>
+                    <p class="text-center text-sm text-slate-600 mt-6">
+                        มีบัญชีอยู่แล้ว? <button id="show-login-btn" class="font-medium text-blue-600 hover:text-blue-500">กลับไปล็อกอิน</button>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MAIN APPLICATION SECTION ===== -->
+    <div id="app-section" class="hidden">
+        <div id="app-wrapper" class="transition-all duration-300">
+            <!-- Header -->
+            <header class="sticky top-0 bg-white/80 backdrop-blur-lg shadow-sm z-20">
+                <div class="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                    <div class="flex justify-between items-center h-16">
+                        <div class="flex items-center">
+                             <i class="fa-solid fa-wallet text-2xl text-blue-600"></i>
+                            <span class="ml-3 text-xl font-bold text-slate-800">CalPay Ultimate</span>
+                        </div>
+                        <div class="flex items-center gap-4">
+                             <!-- View Mode Toggle -->
+                             <div class="hidden md:flex items-center gap-2">
+                                 <button id="desktop-view-btn" class="p-2 rounded-md bg-blue-100 text-blue-600" title="Desktop View"><i class="fa-solid fa-desktop"></i></button>
+                                 <button id="mobile-view-btn" class="p-2 rounded-md" title="Mobile View"><i class="fa-solid fa-mobile-screen-button"></i></button>
+                             </div>
+                             <div class="text-right">
+                                <p id="user-email-display" class="text-sm font-medium text-slate-700 truncate max-w-xs"></p>
+                                <p class="text-xs text-slate-500">Online</p>
+                             </div>
+                             <button id="logout-btn" class="btn btn-secondary">
+                                <i class="fa-solid fa-right-from-bracket mr-2"></i>
+                                <span class="hidden sm:inline">ออกจากระบบ</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Main Content -->
+            <main class="container mx-auto max-w-7xl p-4 sm:p-6 lg:p-8">
+                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <!-- Left Column -->
+                    <div class="lg:col-span-2 space-y-8">
+                        <!-- Category Management -->
+                        <section id="categories-section">
+                            <div class="card">
+                                <h2 class="text-2xl font-semibold text-slate-700 mb-4 flex items-center"><i class="fa-solid fa-folder-open mr-3 text-sky-500"></i>1. จัดการหมวดหมู่</h2>
+                                <div class="flex flex-col sm:flex-row gap-4 mb-6">
+                                    <input type="text" id="new-category-name" class="input-field flex-grow" placeholder="เช่น ค่าเดินทาง, ค่าอาหาร">
+                                    <input type="hidden" id="editing-category-id">
+                                    <button id="add-category-btn" class="btn btn-primary w-full sm:w-auto"><i class="fa-solid fa-plus mr-2"></i><span>เพิ่มหมวดหมู่</span></button>
+                                </div>
+                                <div class="flex justify-between items-center mb-3">
+                                    <h3 class="text-lg font-medium text-slate-600">หมวดหมู่ทั้งหมด:</h3>
+                                    <div class="flex items-center">
+                                        <input type="checkbox" id="select-all-categories-checkbox" class="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 cursor-pointer">
+                                        <label for="select-all-categories-checkbox" class="ml-2 text-sm text-slate-600 cursor-pointer">เลือก/ยกเลิกทั้งหมด</label>
+                                    </div>
+                                </div>
+                                <div id="categories-list" class="space-y-3 max-h-96 overflow-y-auto no-scrollbar pr-2">
+                                    <p class="text-slate-500 text-center py-4">กำลังโหลดหมวดหมู่...</p>
+                                </div>
+                            </div>
+                        </section>
+                        
+                        <!-- Expense Management -->
+                        <section id="add-expense-form-section">
+                            <div class="card">
+                                <h2 class="text-2xl font-semibold text-slate-700 mb-4 flex items-center"><i class="fa-solid fa-file-pen mr-3 text-amber-500"></i>2. เพิ่ม/แก้ไข รายการค่าใช้จ่าย</h2>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 mb-6 items-end">
+                                    <div>
+                                        <label for="expense-description" class="block text-sm font-medium text-slate-700 mb-1">รายละเอียด:</label>
+                                        <input type="text" id="expense-description" class="input-field" placeholder="เช่น เหมา AIS รายเดือน">
+                                    </div>
+                                    <div>
+                                        <label for="expense-amount-monthly" class="block text-sm font-medium text-slate-700 mb-1">จำนวนเงิน (ต่อเดือน):</label>
+                                        <input type="number" id="expense-amount-monthly" class="input-field" placeholder="250" min="0">
+                                    </div>
+                                    <div class="md:col-span-2">
+                                        <label for="expense-category-dropdown" class="block text-sm font-medium text-slate-700 mb-1">เลือกหมวดหมู่:</label>
+                                        <select id="expense-category-dropdown" class="input-field">
+                                            <option value="">-- กรุณาเลือกหมวดหมู่ --</option>
+                                        </select>
+                                    </div>
+                                    <input type="hidden" id="editing-expense-id">
+                                </div>
+                                <button id="add-expense-item-btn" class="btn btn-primary w-full sm:w-auto"><i class="fa-solid fa-plus mr-2"></i><span>เพิ่มรายการ</span></button>
+                            </div>
+                        </section>
+                    </div>
+
+                    <!-- Right Column -->
+                    <div class="lg:col-span-1 space-y-8">
+                        <!-- Summary -->
+                        <section id="summary-section">
+                            <div class="card">
+                                <h2 class="text-2xl font-semibold text-slate-700 mb-4 flex items-center"><i class="fa-solid fa-coins mr-3 text-green-500"></i>3. สรุปยอดรวม</h2>
+                                <p class="text-sm text-slate-500 mb-4">คำนวณจากหมวดหมู่ที่เลือกไว้</p>
+                                <div class="space-y-3 text-lg">
+                                    <div class="flex justify-between items-center p-3 bg-sky-50 rounded-lg">
+                                        <span class="text-sky-700 text-base">ต่อวัน (เฉลี่ย):</span>
+                                        <span id="total-daily-expense" class="font-bold text-sky-800">0.00 บ.</span>
+                                    </div>
+                                    <div class="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                                        <span class="text-green-700 text-base">ต่อเดือน:</span>
+                                        <span id="total-monthly-expense" class="font-bold text-green-800">0.00 บ.</span>
+                                    </div>
+                                    <div class="flex justify-between items-center p-3 bg-emerald-50 rounded-lg">
+                                        <span class="text-emerald-700 text-base">ต่อปี:</span>
+                                        <span id="total-yearly-expense" class="font-bold text-emerald-800">0.00 บ.</span>
+                                    </div>
+                                </div>
+                                <div class="mt-6">
+                                     <button id="generate-report-btn" class="btn btn-primary w-full text-lg py-3"><i class="fa-solid fa-file-invoice-dollar mr-2"></i>สร้างรายงานสรุป</button>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                 </div>
+
+                 <!-- Expense Items View (hidden by default) -->
+                <section id="expenses-section" class="mt-8 hidden">
+                    <div class="card">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+                            <h2 class="text-2xl font-semibold text-slate-700">รายการในหมวด: <span id="current-category-name" class="text-blue-600"></span></h2>
+                            <button id="back-to-categories-btn" class="btn btn-secondary btn-sm"><i class="fa-solid fa-arrow-left mr-2"></i>กลับไปหน้าหลัก</button>
+                        </div>
+                        <div id="expense-items-list" class="space-y-3"></div>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <!-- ===== MODALS ===== -->
+    <!-- Report Modal -->
+    <div id="report-modal" class="modal hidden">
+        <div class="modal-content w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <div id="report-content-wrapper" class="flex-grow overflow-hidden flex flex-col">
+                <div class="flex justify-between items-start mb-4 flex-shrink-0">
+                     <h1 class="report-title flex-grow text-center text-red-500 text-xl sm:text-2xl font-bold border-b-2 border-blue-500 pb-3">📊 สรุปค่าใช้จ่าย #ครอบครัวเหมาเฟิร์น</h1>
+                     <button id="close-report-modal-btn" class="text-slate-400 hover:text-red-500 -mt-2 -mr-2"><i class="fa-solid fa-xmark fa-2x"></i></button>
+                </div>
+                <div id="report-content" class="flex-grow overflow-y-auto no-scrollbar p-1">
+                    <!-- Report content will be injected here -->
+                </div>
+            </div>
+             <div class="flex-shrink-0 flex flex-col sm:flex-row gap-3 justify-end mt-6 pt-4 border-t">
+                <button id="print-report-btn" class="btn btn-secondary"><i class="fa-solid fa-print mr-2"></i>พิมพ์ / PDF</button>
+                <button id="copy-report-btn" class="btn btn-primary"><i class="fa-solid fa-copy mr-2"></i>คัดลอกข้อมูล</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Message Modal -->
+    <div id="message-modal" class="modal hidden">
+        <div class="modal-content max-w-sm">
+            <h3 id="message-modal-title" class="text-xl font-semibold mb-3">ข้อความ</h3>
+            <p id="message-modal-text" class="text-slate-700 mb-4"></p>
+            <div class="text-right">
+                <button id="message-modal-close-btn" class="btn btn-primary">ตกลง</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div id="confirm-modal" class="modal hidden">
+        <div class="modal-content max-w-sm">
+            <h3 class="text-xl font-semibold text-slate-800 mb-2">ยืนยันการกระทำ</h3>
+            <p id="confirm-modal-text" class="text-slate-600 mb-6"></p>
+            <div class="flex justify-end gap-3">
+                <button id="confirm-modal-cancel-btn" class="btn btn-secondary">ยกเลิก</button>
+                <button id="confirm-modal-ok-btn" class="btn btn-danger">ยืนยัน</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        // นี่คือ Firebase Config ของเพื่อนเหมานะ, ถ้าใช้ใน Canvas มันจะดึงค่าจากระบบมาให้เอง ไม่ต้องแก้
+        // แต่ถ้าเอาไปรันข้างนอก ต้องเอาค่าจริงๆ มาใส่นะ
+        const firebaseConfig = {
+          apiKey: "AIzaSyDhb9ytLJVVrRCqGe2B3MHTCH7LENNE1KY", //แทนที่ด้วย API Key จริง
+          authDomain: "calpay-38a9f.firebaseapp.com", //แทนที่ด้วย Auth Domain จริง
+          projectId: "calpay-38a9f", //แทนที่ด้วย Project ID จริง
+          storageBucket: "calpay-38a9f.appspot.com", //หรือ calpay-38a9f.firebasestorage.app ตามที่พี่ใช้
+          messagingSenderId: "822753439035", //แทนที่ด้วย Sender ID จริง
+          appId: "1:822753439035:web:fa676facb3906b5bdc9b1e" //แทนที่ด้วย App ID จริง
+        };
+        
+        // Import Firebase modules
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            onAuthStateChanged,
+            createUserWithEmailAndPassword,
+            signInWithEmailAndPassword,
+            signOut,
+            signInWithCustomToken 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            collection, addDoc, doc, setDoc, deleteDoc, onSnapshot, 
+            query, where, writeBatch, orderBy, Timestamp, getDocs
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global state
+        let app, auth, db;
+        let userId = null; 
+        let localCategoriesCache = []; 
+        let listeners = []; // Array to hold all active listeners
+        let confirmResolver = null;
+
+        // === DOM Elements ===
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingText = document.getElementById('loading-text');
+        
+        // Auth
+        const authSection = document.getElementById('auth-section');
+        const loginForm = document.getElementById('login-form');
+        const registerForm = document.getElementById('register-form');
+        const loginFormElement = document.getElementById('login-form-element');
+        const registerFormElement = document.getElementById('register-form-element');
+        const showRegisterBtn = document.getElementById('show-register-btn');
+        const showLoginBtn = document.getElementById('show-login-btn');
+        
+        // App
+        const appSection = document.getElementById('app-section');
+        const appWrapper = document.getElementById('app-wrapper');
+        const userEmailDisplay = document.getElementById('user-email-display');
+        const logoutBtn = document.getElementById('logout-btn');
+        const desktopViewBtn = document.getElementById('desktop-view-btn');
+        const mobileViewBtn = document.getElementById('mobile-view-btn');
+
+        // Categories
+        const newCategoryNameInput = document.getElementById('new-category-name');
+        const addCategoryBtn = document.getElementById('add-category-btn');
+        const editingCategoryIdInput = document.getElementById('editing-category-id');
+        const categoriesListDiv = document.getElementById('categories-list');
+        const selectAllCategoriesCheckbox = document.getElementById('select-all-categories-checkbox');
+        
+        // Expenses
+        const expenseDescriptionInput = document.getElementById('expense-description');
+        const expenseAmountMonthlyInput = document.getElementById('expense-amount-monthly');
+        const expenseCategoryDropdown = document.getElementById('expense-category-dropdown');
+        const addExpenseItemBtn = document.getElementById('add-expense-item-btn');
+        const editingExpenseIdInput = document.getElementById('editing-expense-id');
+
+        // Views
+        const categoriesSection = document.getElementById('categories-section');
+        const addExpenseFormSection = document.getElementById('add-expense-form-section');
+        const expensesSection = document.getElementById('expenses-section');
+        const currentCategoryNameSpan = document.getElementById('current-category-name');
+        const expenseItemsListDiv = document.getElementById('expense-items-list');
+        const backToCategoriesBtn = document.getElementById('back-to-categories-btn');
+
+        // Summary & Report
+        const totalDailyExpenseSpan = document.getElementById('total-daily-expense'); 
+        const totalMonthlyExpenseSpan = document.getElementById('total-monthly-expense');
+        const totalYearlyExpenseSpan = document.getElementById('total-yearly-expense');
+        const generateReportBtn = document.getElementById('generate-report-btn');
+        const reportModal = document.getElementById('report-modal');
+        const closeReportModalBtn = document.getElementById('close-report-modal-btn');
+        const reportContentDiv = document.getElementById('report-content');
+        const printReportBtn = document.getElementById('print-report-btn');
+        const copyReportBtn = document.getElementById('copy-report-btn');
+
+        // Modals
+        const messageModal = document.getElementById('message-modal');
+        const messageModalTitle = document.getElementById('message-modal-title');
+        const messageModalText = document.getElementById('message-modal-text');
+        const messageModalCloseBtn = document.getElementById('message-modal-close-btn');
+        const confirmModal = document.getElementById('confirm-modal');
+        const confirmModalText = document.getElementById('confirm-modal-text');
+        const confirmModalCancelBtn = document.getElementById('confirm-modal-cancel-btn');
+        const confirmModalOkBtn = document.getElementById('confirm-modal-ok-btn');
+
+        // === Utility Functions ===
+        const showLoading = (show, text = 'กำลังโหลด...') => {
+            loadingText.textContent = text;
+            loadingOverlay.classList.toggle('hidden', !show);
+        };
+
+        const showMessage = (title, text, type = 'info') => {
+            messageModalTitle.textContent = title;
+            messageModalText.innerHTML = text; 
+            messageModalTitle.classList.toggle('text-red-600', type === 'error');
+            messageModalTitle.classList.toggle('text-green-600', type === 'success');
+            messageModalTitle.classList.toggle('text-blue-600', type === 'info');
+            messageModal.classList.remove('hidden');
+            setTimeout(() => messageModal.classList.add('active'), 10);
+        };
+        const hideMessage = () => {
+            messageModal.classList.remove('active');
+            setTimeout(() => messageModal.classList.add('hidden'), 300);
+        };
+        
+        const showConfirm = (text) => {
+            return new Promise((resolve) => {
+                confirmResolver = resolve;
+                confirmModalText.textContent = text;
+                confirmModal.classList.remove('hidden');
+                setTimeout(() => confirmModal.classList.add('active'), 10);
+            });
+        };
+        const hideConfirm = () => {
+            confirmModal.classList.remove('active');
+            setTimeout(() => confirmModal.classList.add('hidden'), 300);
+        };
+
+        const formatCurrency = (amount, digits = 2) => {
+            if (typeof amount !== 'number' || isNaN(amount)) return '0.00';
+            return amount.toLocaleString('th-TH', {minimumFractionDigits: digits, maximumFractionDigits: digits});
+        };
+
+        // === Firebase Initialization & Auth Handling ===
+        function initializeFirebaseApp() {
+            try {
+                const effectiveConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : firebaseConfig;
+                if (!effectiveConfig.apiKey || effectiveConfig.apiKey.startsWith("YOUR_")) {
+                    showMessage("ตั้งค่าผิดพลาด", "Firebase config ไม่ถูกต้องนะเพื่อน! ลองเช็คดูใหม่ในโค้ด หรือถ้าใช้ใน Canvas อาจจะมีปัญหา ลองรีเฟรชดู", "error");
+                    return;
+                }
+                app = initializeApp(effectiveConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                setupAuthListener();
+            } catch (error) {
+                console.error("Firebase Init Error:", error);
+                showMessage("Firebase Error", "เกิดปัญหาตอนเชื่อมต่อ Firebase จ้า: " + error.message, "error");
+            }
+        }
+
+        function setupAuthListener() {
+            onAuthStateChanged(auth, async (user) => {
+                detachAllListeners(); // Clear old listeners on auth state change
+                if (user) {
+                    // User is signed in
+                    userId = user.uid;
+                    userEmailDisplay.textContent = user.email || 'Anonymous User';
+                    authSection.classList.add('hidden');
+                    appSection.classList.remove('hidden');
+                    showLoading(true, 'กำลังดึงข้อมูลของคุณ...');
+                    await initializeAppData();
+                    showLoading(false);
+                } else {
+                    // User is signed out
+                    userId = null;
+                    localCategoriesCache = [];
+                    appSection.classList.add('hidden');
+                    authSection.classList.remove('hidden');
+                    showLoading(false);
+                }
+            });
+        }
+        
+        async function handleInitialAuth() {
+            showLoading(true, "กำลังตรวจสอบการล็อกอิน...");
+            try {
+                // For Google's Canvas environment
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                }
+            } catch (error) {
+                console.log("No custom token found or error signing in, waiting for user login.", error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function handleRegister(e) {
+            e.preventDefault();
+            const email = document.getElementById('register-email').value;
+            const password = document.getElementById('register-password').value;
+            const confirmPassword = document.getElementById('register-confirm-password').value;
+
+            if (password !== confirmPassword) {
+                showMessage("ผิดพลาด", "รหัสผ่านไม่ตรงกันนะเพื่อน!", "error");
+                return;
+            }
+            if (password.length < 6) {
+                showMessage("ผิดพลาด", "รหัสผ่านต้องยาวอย่างน้อย 6 ตัวอักษรนะ", "error");
+                return;
+            }
+
+            showLoading(true, "กำลังสร้างบัญชี...");
+            createUserWithEmailAndPassword(auth, email, password)
+                .then((userCredential) => {
+                    showMessage("เย้!", `สมัครสมาชิกสำเร็จแล้ว ยินดีต้อนรับ ${userCredential.user.email}!`, "success");
+                    // onAuthStateChanged will handle UI switching
+                })
+                .catch((error) => {
+                    console.error("Register error:", error);
+                    showMessage("โอ๊ะโอ...", "สมัครไม่ได้อ่ะเพื่อน ลองเช็คอีเมลหรือรหัสผ่านดูนะ: " + error.message, "error");
+                })
+                .finally(() => showLoading(false));
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            showLoading(true, "กำลังเข้าสู่ระบบ...");
+            signInWithEmailAndPassword(auth, email, password)
+                .then((userCredential) => {
+                    // onAuthStateChanged will handle everything
+                })
+                .catch((error) => {
+                    console.error("Login error:", error);
+                     showMessage("ล็อกอินไม่ได้", "อีเมลหรือรหัสผ่านผิดพลาดว่ะเพื่อน ลองดูใหม่ดิ๊", "error");
+                })
+                .finally(() => showLoading(false));
+        }
+
+        function handleLogout() {
+            showLoading(true, "กำลังออกจากระบบ...");
+            signOut(auth).catch((error) => {
+                 showMessage("Error", "ออกจากระบบไม่ได้แฮะ: " + error.message, "error");
+            }).finally(() => showLoading(false));
+        }
+
+        // === App Data Initialization ===
+        async function initializeAppData() {
+            if (!userId) return;
+            // Reset UI state for new user
+            resetCategoryForm();
+            resetExpenseForm();
+            switchToMainView();
+            // Load data
+            await Promise.all([
+                loadCategories(),
+                loadAllExpensesForSummary()
+            ]);
+            renderSummary();
+        }
+
+        // === Listener Management ===
+        function detachAllListeners() {
+            listeners.forEach(unsubscribe => unsubscribe());
+            listeners = [];
+            console.log("All Firestore listeners detached.");
+        }
+        
+        // === Firebase Path helpers ===
+        const categoriesCollectionRef = () => collection(db, 'users', userId, 'categories');
+        const categoryDocRef = (id) => doc(db, 'users', userId, 'categories', id);
+        const expensesCollectionRef = () => collection(db, 'users', userId, 'expenses');
+        const expenseDocRef = (id) => doc(db, 'users', userId, 'expenses', id);
+
+        // === Category Management ===
+        async function loadCategories() {
+            if (!userId) return;
+            const q = query(categoriesCollectionRef(), orderBy("name")); 
+            const unsubscribe = onSnapshot(q, (snapshot) => {
+                const cats = [];
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    cats.push({ id: doc.id, ...data, selectedForReport: data.selectedForReport !== false }); 
+                });
+                localCategoriesCache = cats.map(cat => ({ ...cat, expenses: localCategoriesCache.find(c => c.id === cat.id)?.expenses || [] }));
+                renderCategories(cats);
+                updateCategoryDropdown(cats);
+                updateSelectAllCheckboxState(); 
+                renderSummary(); 
+            }, (error) => {
+                console.error("Error loading categories:", error);
+                showMessage("Error", `โหลดหมวดหมู่ไม่ได้: ${error.message}`, "error");
+            });
+            listeners.push(unsubscribe); // Add to listeners array
+        }
+
+        function renderCategories(categoriesData) {
+            categoriesListDiv.innerHTML = '';
+            if (categoriesData.length === 0) {
+                categoriesListDiv.innerHTML = '<p class="text-slate-500 text-center py-4">ยังไม่มีหมวดหมู่เลยเพื่อน ลองเพิ่มดูหน่อยมะ!</p>';
+                selectAllCategoriesCheckbox.checked = false;
+                selectAllCategoriesCheckbox.disabled = true;
+                return;
+            }
+            selectAllCategoriesCheckbox.disabled = false;
+            categoriesData.forEach(category => {
+                const div = document.createElement('div');
+                div.className = 'category-item flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors duration-200 gap-2';
+                
+                const left = document.createElement('div');
+                left.className = 'flex items-center flex-grow w-full sm:w-auto';
+                left.innerHTML = `
+                    <input type="checkbox" data-category-id="${category.id}" class="category-select-checkbox w-5 h-5 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 cursor-pointer flex-shrink-0" ${category.selectedForReport ? 'checked' : ''}>
+                    <span class="category-name ml-3 text-slate-700 font-medium cursor-pointer hover:text-blue-600 truncate">${category.name}</span>
+                `;
+                
+                const right = document.createElement('div');
+                right.className = 'flex space-x-2 flex-shrink-0 self-end sm:self-center';
+                right.innerHTML = `
+                    <button class="edit-category-btn btn btn-secondary btn-sm !p-2" title="แก้ไขชื่อ"><i class="fa-solid fa-pencil"></i></button>
+                    <button class="delete-category-btn btn btn-danger btn-sm !p-2" title="ลบหมวดหมู่"><i class="fa-solid fa-trash-can"></i></button>
+                `;
+                
+                // Event Listeners
+                left.querySelector('.category-select-checkbox').addEventListener('change', (e) => toggleCategoryReportSelection(category.id, e.target.checked));
+                left.querySelector('.category-name').addEventListener('click', () => switchToExpenseView(category.id, category.name));
+                right.querySelector('.edit-category-btn').addEventListener('click', () => startEditCategoryName(category));
+                right.querySelector('.delete-category-btn').addEventListener('click', () => confirmDeleteCategory(category.id, category.name));
+                
+                div.appendChild(left);
+                div.appendChild(right);
+                categoriesListDiv.appendChild(div);
+            });
+        }
+        
+        function toggleCategoryReportSelection(categoryId, isSelected) {
+            const category = localCategoriesCache.find(cat => cat.id === categoryId);
+            if (category) {
+                category.selectedForReport = isSelected;
+            }
+            updateSelectAllCheckboxState();
+            renderSummary(); 
+        }
+
+        function updateSelectAllCheckboxState() {
+            if (!selectAllCategoriesCheckbox) return;
+            const totalCategories = localCategoriesCache.length;
+            if (totalCategories === 0) return;
+            
+            const selectedCount = localCategoriesCache.filter(cat => cat.selectedForReport).length;
+            if (selectedCount === 0) {
+                selectAllCategoriesCheckbox.checked = false;
+                selectAllCategoriesCheckbox.indeterminate = false;
+            } else if (selectedCount === totalCategories) {
+                selectAllCategoriesCheckbox.checked = true;
+                selectAllCategoriesCheckbox.indeterminate = false;
+            } else {
+                selectAllCategoriesCheckbox.checked = false;
+                selectAllCategoriesCheckbox.indeterminate = true;
+            }
+        }
+        
+        async function handleCategorySubmit() {
+            const name = newCategoryNameInput.value.trim();
+            const editingId = editingCategoryIdInput.value;
+            if (!name) {
+                showMessage("ข้อมูลไม่ครบ", "ใส่ชื่อหมวดหมู่ก่อนเพื่อน!", "error");
+                return;
+            }
+            showLoading(true, "กำลังบันทึก...");
+            try {
+                if (editingId) {
+                    await setDoc(categoryDocRef(editingId), { name }, { merge: true });
+                } else {
+                    await addDoc(categoriesCollectionRef(), { name, createdAt: Timestamp.now(), selectedForReport: true });
+                }
+                resetCategoryForm();
+            } catch (error) {
+                showMessage("Error", `บันทึกหมวดหมู่ไม่ได้: ${error.message}`, "error");
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        function startEditCategoryName(category) {
+            newCategoryNameInput.value = category.name;
+            editingCategoryIdInput.value = category.id;
+            addCategoryBtn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-2"></i><span>บันทึกชื่อ</span>';
+            addCategoryBtn.classList.replace('btn-primary', 'btn-success');
+            newCategoryNameInput.focus();
+        }
+
+        function resetCategoryForm() {
+            newCategoryNameInput.value = '';
+            editingCategoryIdInput.value = '';
+            addCategoryBtn.innerHTML = '<i class="fa-solid fa-plus mr-2"></i><span>เพิ่มหมวดหมู่</span>';
+            addCategoryBtn.classList.replace('btn-success', 'btn-primary');
+        }
+
+        async function confirmDeleteCategory(id, name) {
+            const confirmed = await showConfirm(`แน่ใจนะว่าจะลบหมวดหมู่ "${name}"? รายจ่ายทั้งหมดในนี้จะหายไปด้วยนะเพื่อน กู้คืนไม่ได้นะเว้ย!`);
+            if (confirmed) {
+                showLoading(true, 'กำลังลบ...');
+                try {
+                    const batch = writeBatch(db);
+                    // Delete category doc
+                    batch.delete(categoryDocRef(id));
+                    // Query and delete all expenses in this category
+                    const q = query(expensesCollectionRef(), where("categoryId", "==", id));
+                    const expensesSnapshot = await getDocs(q);
+                    expensesSnapshot.forEach(doc => batch.delete(doc.ref));
+                    await batch.commit();
+
+                    showMessage("สำเร็จ!", `ลบหมวดหมู่ "${name}" เรียบร้อย`, "success");
+                    if (expensesSection.dataset.currentViewingCategoryId === id) {
+                        switchToMainView(); 
+                    }
+                } catch (error) {
+                    showMessage("Error", `ลบหมวดหมู่ไม่ได้: ${error.message}`, "error");
+                } finally {
+                    showLoading(false);
+                }
+            }
+        }
+
+        function updateCategoryDropdown(categoriesData) {
+            expenseCategoryDropdown.innerHTML = '<option value="">-- กรุณาเลือกหมวดหมู่ --</option>';
+            expenseCategoryDropdown.disabled = categoriesData.length === 0;
+            categoriesData.forEach(c => {
+                expenseCategoryDropdown.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+            });
+        }
+        
+        // === Expense Management ===
+        async function loadAllExpensesForSummary() {
+            if (!userId) return;
+            const q = query(expensesCollectionRef(), orderBy("createdAt", "desc"));
+            const unsubscribe = onSnapshot(q, (snapshot) => {
+                const allUserExpenses = [];
+                snapshot.forEach(doc => allUserExpenses.push({ id: doc.id, ...doc.data() }));
+                localCategoriesCache.forEach(cat => {
+                    cat.expenses = allUserExpenses.filter(exp => exp.categoryId === cat.id);
+                });
+                renderSummary();
+            }, (error) => {
+                console.error("Error loading all expenses:", error);
+            });
+            listeners.push(unsubscribe); // Add to listeners array
+        }
+
+        function loadExpensesForCategory(categoryId) {
+            if (!userId) return;
+            const q = query(expensesCollectionRef(), where("categoryId", "==", categoryId), orderBy("createdAt", "desc"));
+            const unsubscribe = onSnapshot(q, (snapshot) => {
+                const exps = [];
+                snapshot.forEach(doc => exps.push({ id: doc.id, ...doc.data() }));
+                renderExpenseItems(exps, categoryId);
+            }, (error) => {
+                console.error(`Error loading expenses for category ${categoryId}:`, error);
+                expenseItemsListDiv.innerHTML = '<p class="text-red-500 text-center py-4">เกิดข้อผิดพลาดในการโหลดรายการ</p>';
+            });
+            listeners.push(unsubscribe); // Add to listeners array
+        }
+        
+        function renderExpenseItems(expensesData) {
+            expenseItemsListDiv.innerHTML = '';
+            if (expensesData.length === 0) {
+                expenseItemsListDiv.innerHTML = '<p class="text-slate-500 text-center py-4">ยังไม่มีรายจ่ายในหมวดหมู่นี้เลย</p>';
+                return;
+            }
+            expensesData.forEach(expense => {
+                const div = document.createElement('div');
+                div.className = 'expense-item flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-sky-50 rounded-lg gap-3';
+                const left = document.createElement('div');
+                left.className = 'flex-grow';
+                left.innerHTML = `
+                    <p class="font-semibold text-slate-800">${expense.description}</p>
+                    <p class="text-sm text-slate-500">เดือนละ: <span class="font-bold text-green-600">${formatCurrency(expense.monthlyAmount,0)} บ.</span> | ปีละ: <span class="font-bold text-emerald-700">${formatCurrency(expense.monthlyAmount * 12, 0)} บ.</span></p>
+                `;
+                const right = document.createElement('div');
+                right.className = 'flex space-x-2 flex-shrink-0 self-end sm:self-center';
+                right.innerHTML = `
+                    <button class="edit-expense-btn btn btn-secondary btn-sm !p-2" title="แก้ไข"><i class="fa-solid fa-pencil"></i></button>
+                    <button class="delete-expense-btn btn btn-danger btn-sm !p-2" title="ลบ"><i class="fa-solid fa-trash-can"></i></button>
+                `;
+                right.querySelector('.edit-expense-btn').addEventListener('click', () => {
+                    switchToMainView();
+                    startEditExpenseItem(expense);
+                });
+                right.querySelector('.delete-expense-btn').addEventListener('click', () => deleteExpenseItem(expense.id, expense.description));
+
+                div.appendChild(left);
+                div.appendChild(right);
+                expenseItemsListDiv.appendChild(div);
+            });
+        }
+        
+        async function handleExpenseSubmit() {
+            const description = expenseDescriptionInput.value.trim();
+            const amountStr = expenseAmountMonthlyInput.value.trim();
+            const categoryId = expenseCategoryDropdown.value;
+            const editingId = editingExpenseIdInput.value;
+
+            if (!description || !amountStr || !categoryId) {
+                showMessage("ข้อมูลไม่ครบ", "กรอกข้อมูลรายจ่ายให้ครบก่อนนะเพื่อน", "error");
+                return;
+            }
+            const monthlyAmount = parseFloat(amountStr);
+            if (isNaN(monthlyAmount) || monthlyAmount <= 0) {
+                showMessage("ข้อมูลผิดพลาด", "จำนวนเงินต้องเป็นตัวเลขที่มากกว่า 0", "error");
+                return;
+            }
+            
+            showLoading(true, 'กำลังบันทึก...');
+            const data = { description, monthlyAmount, categoryId };
+            try {
+                if (editingId) {
+                    data.lastUpdatedAt = Timestamp.now();
+                    await setDoc(expenseDocRef(editingId), data, { merge: true });
+                } else {
+                    data.createdAt = Timestamp.now();
+                    await addDoc(expensesCollectionRef(), data);
+                }
+                resetExpenseForm();
+            } catch (error) {
+                showMessage("Error", `บันทึกรายจ่ายไม่ได้: ${error.message}`, "error");
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        function startEditExpenseItem(expense) {
+            expenseDescriptionInput.value = expense.description;
+            expenseAmountMonthlyInput.value = expense.monthlyAmount;
+            expenseCategoryDropdown.value = expense.categoryId;
+            editingExpenseIdInput.value = expense.id;
+            
+            addExpenseItemBtn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-2"></i><span>บันทึกการแก้ไข</span>';
+            addExpenseItemBtn.classList.replace('btn-primary', 'btn-success');
+            
+            addExpenseFormSection.scrollIntoView({ behavior: 'smooth' });
+            expenseDescriptionInput.focus();
+        }
+
+        function resetExpenseForm() {
+            expenseDescriptionInput.value = '';
+            expenseAmountMonthlyInput.value = '';
+            expenseCategoryDropdown.value = '';
+            editingExpenseIdInput.value = '';
+            addExpenseItemBtn.innerHTML = '<i class="fa-solid fa-plus mr-2"></i><span>เพิ่มรายการ</span>';
+            addExpenseItemBtn.classList.replace('btn-success', 'btn-primary');
+        }
+
+        async function deleteExpenseItem(id, name) {
+            const confirmed = await showConfirm(`แน่ใจนะว่าจะลบรายการ "${name}"?`);
+            if(confirmed) {
+                showLoading(true, 'กำลังลบ...');
+                try {
+                    await deleteDoc(expenseDocRef(id));
+                } catch(error) {
+                    showMessage("Error", `ลบรายการไม่ได้: ${error.message}`, "error");
+                } finally {
+                    showLoading(false);
+                }
+            }
+        }
+
+        // === View Switching ===
+        function switchToExpenseView(categoryId, categoryName) {
+            // Detach main page listeners to avoid conflicts
+            detachAllListeners();
+            // Load specific listeners for this view
+            loadExpensesForCategory(categoryId);
+            
+            currentCategoryNameSpan.textContent = categoryName;
+            expensesSection.dataset.currentViewingCategoryId = categoryId; 
+
+            categoriesSection.classList.add('hidden');
+            addExpenseFormSection.classList.add('hidden');
+            document.querySelector('.lg\\:col-span-1').classList.add('hidden'); // Hide summary column
+            document.querySelector('.lg\\:col-span-2').classList.replace('lg:col-span-2', 'lg:col-span-3'); // Expand main column
+            expensesSection.classList.remove('hidden');
+            expensesSection.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function switchToMainView() {
+             // Detach view-specific listeners
+            detachAllListeners();
+            // Re-initialize main app listeners
+            initializeAppData();
+
+            expensesSection.classList.add('hidden');
+            expensesSection.dataset.currentViewingCategoryId = '';
+
+            categoriesSection.classList.remove('hidden');
+            addExpenseFormSection.classList.remove('hidden');
+            document.querySelector('.lg\\:col-span-1').classList.remove('hidden'); // Show summary column
+            document.querySelector('.lg\\:col-span-3')?.classList.replace('lg:col-span-3', 'lg:col-span-2'); // Restore main column
+            resetExpenseForm(); 
+        }
+        
+        // === Summary & Report ===
+        function renderSummary() {
+            let totalMonthly = 0;
+            localCategoriesCache.forEach(category => {
+                if (category.selectedForReport && category.expenses) {
+                    category.expenses.forEach(expense => {
+                        totalMonthly += parseFloat(expense.monthlyAmount);
+                    });
+                }
+            });
+            const totalYearly = totalMonthly * 12;
+            const totalDaily = totalMonthly / 30.4375; // More accurate average
+
+            totalDailyExpenseSpan.textContent = `${formatCurrency(totalDaily)} บ.`;
+            totalMonthlyExpenseSpan.textContent = `${formatCurrency(totalMonthly)} บ.`;
+            totalYearlyExpenseSpan.textContent = `${formatCurrency(totalYearly)} บ.`;
+        }
+        
+        function generateReportContentText() {
+            let text = "รายงานสรุปค่าใช้จ่าย #ครอบครัวเหมาเฟิร์น\n============================\n\n";
+            let grandTotal = 0;
+            const selectedCats = localCategoriesCache.filter(c => c.selectedForReport);
+            
+            if (selectedCats.length === 0) return "ยังไม่ได้เลือกหมวดหมู่สำหรับทำรายงานเลยเพื่อน";
+
+            selectedCats.forEach(cat => {
+                if (cat.expenses && cat.expenses.length > 0) {
+                    text += `หมวดหมู่: ${cat.name}\n`;
+                    let catTotal = 0;
+                    cat.expenses.forEach(exp => {
+                        text += `- ${exp.description}: ${formatCurrency(exp.monthlyAmount)} บ./เดือน\n`;
+                        catTotal += exp.monthlyAmount;
+                    });
+                    text += `  ยอดรวมหมวดนี้: ${formatCurrency(catTotal)} บ./เดือน\n\n`;
+                    grandTotal += catTotal;
+                }
+            });
+            
+            if(grandTotal === 0) return "หมวดหมู่ที่เลือกไว้ยังไม่มีรายจ่ายเลยว่ะ";
+
+            text += `============================\nยอดรวมทั้งหมด:\n`;
+            text += `รายวัน (เฉลี่ย): ${formatCurrency(grandTotal / 30.4375)} บ.\n`;
+            text += `รายเดือน: ${formatCurrency(grandTotal)} บ.\n`;
+            text += `รายปี: ${formatCurrency(grandTotal * 12)} บ.\n`;
+            text += "============================\n";
+            text += "วางแผนดีๆ แล้วไปเชียร์ปืนใหญ่กันต่อ! #COYG 🔴⚪\n";
+            return text;
+        }
+        
+        function generateReportContentHTML() {
+            let html = `<p class="text-center text-slate-600 mb-4">อัปเดตล่าสุด! ดูสบายตาฝุดๆ #รายจ่ายครอบครัว 👨‍👩‍👧‍👦✨</p>`;
+            html += `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">`;
+            let grandTotalMonthly = 0;
+            const selectedCats = localCategoriesCache.filter(c => c.selectedForReport);
+            let hasExpenses = false;
+            
+            if (selectedCats.length === 0) {
+                 return `<p class="text-slate-500 text-center p-8">ยังไม่ได้เลือกหมวดหมู่สำหรับรายงานเลยเพื่อน กลับไปติ๊กเลือกก่อนนะ</p>`;
+            }
+
+            selectedCats.forEach(category => {
+                html += `<div class="category flex flex-col p-4 bg-slate-50 rounded-lg border">`;
+                html += `<h2 class="report-category-title text-blue-600 font-bold text-lg border-b pb-2 mb-2">${category.name}</h2>`;
+                let categoryTotal = 0;
+                if (category.expenses && category.expenses.length > 0) {
+                    hasExpenses = true;
+                    html += '<div class="flex-grow space-y-2">';
+                    category.expenses.forEach(expense => {
+                         html += `<div class="category-item flex justify-between text-sm">
+                                    <span class="item-name text-slate-700 truncate pr-2">${expense.description}</span>
+                                    <span class="item-cost font-semibold text-green-600 whitespace-nowrap">${formatCurrency(expense.monthlyAmount,0)} บ./ด.</span>
+                                 </div>`;
+                        categoryTotal += expense.monthlyAmount;
+                    });
+                    html += '</div>';
+                } else {
+                    html += `<div class="flex-grow flex items-center justify-center"><p class="text-slate-400 italic text-sm">ไม่มีรายการ</p></div>`;
+                }
+                html += `<div class="category-total mt-3 pt-3 border-t bg-blue-50 p-3 rounded-md text-right">
+                            <p class="text-sm">รวมหมวดนี้: <span class="font-bold text-blue-700 text-base">${formatCurrency(categoryTotal,0)} บ./ด.</span></p>
+                            <p class="text-xs text-slate-500">ต่อปี: ${formatCurrency(categoryTotal * 12, 0)} บ.</p>
+                         </div>`;
+                html += `</div>`;
+                grandTotalMonthly += categoryTotal;
+            });
+            html += `</div>`;
+            
+            if (!hasExpenses) {
+                return `<p class="text-slate-500 text-center p-8">หมวดหมู่ที่เลือกไว้ยังไม่มีรายการจ่ายเงินเลยเพื่อน</p>`;
+            }
+
+            html += `<div class="grand-total-section mt-6 p-4 bg-slate-800 text-white rounded-lg text-center">
+                        <h2 class="text-2xl font-bold text-red-400 mb-3">🚨 ยอดรวมทั้งหมด ว้าวซ่า! 🚨</h2>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div><p class="text-slate-300">เฉลี่ยต่อวัน</p><p class="text-2xl font-bold">${formatCurrency(grandTotalMonthly/30.4375)} บ.</p></div>
+                            <div><p class="text-slate-300">รวมรายเดือน</p><p class="text-2xl font-bold">${formatCurrency(grandTotalMonthly)} บ.</p></div>
+                            <div><p class="text-slate-300">รวมรายปี</p><p class="text-2xl font-bold">${formatCurrency(grandTotalMonthly*12)} บ.</p></div>
+                        </div>
+                     </div>`;
+            html += `<p class="text-center text-xs text-slate-500 mt-4">วางแผนการเงินกันต่อเลยนะคร้าบ! 😉 #สู้ๆนะทุกคน #Arsenalสู้ๆ</p>`;
+            return html;
+        }
+
+        function showReportModal() {
+            reportContentDiv.innerHTML = generateReportContentHTML();
+            reportModal.classList.remove('hidden');
+            setTimeout(() => reportModal.classList.add('active'), 10);
+        }
+
+        function hideReportModal() {
+            reportModal.classList.remove('active');
+            setTimeout(() => reportModal.classList.add('hidden'), 300);
+        }
+        
+        function printReport() {
+            const content = generateReportContentHTML();
+            const title = document.querySelector('#report-modal .report-title').textContent;
+            const printWindow = window.open('', '', 'height=800,width=1200');
+            printWindow.document.write('<html><head><title>' + title + '</title>');
+            printWindow.document.write('<script src="https://cdn.tailwindcss.com"><\/script>');
+            printWindow.document.write('<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">');
+            printWindow.document.write('<style>body { font-family: "Kanit", sans-serif; padding: 20px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } .category, .grand-total-section { page-break-inside: avoid; }</style>');
+            printWindow.document.write('</head><body >');
+            printWindow.document.write('<h1 class="text-center text-2xl font-bold mb-4">' + title + '</h1>');
+            printWindow.document.write(content);
+            printWindow.document.write('</body></html>');
+            printWindow.document.close();
+            setTimeout(() => { // Timeout to allow content to render
+                printWindow.focus();
+                printWindow.print();
+                printWindow.close();
+            }, 500);
+        }
+        
+        function copyReport() {
+            const text = generateReportContentText();
+            navigator.clipboard.writeText(text).then(() => {
+                showMessage("สำเร็จ!", "คัดลอกรายงานเป็นข้อความแล้ว!", "success");
+            }).catch(err => {
+                showMessage("Error", "คัดลอกไม่ได้อ่ะ: " + err, "error");
+            });
+        }
+        
+        // === Event Listeners Setup ===
+        function setupEventListeners() {
+            // Auth
+            showRegisterBtn.addEventListener('click', () => {
+                loginForm.classList.add('hidden');
+                registerForm.classList.remove('hidden');
+            });
+            showLoginBtn.addEventListener('click', () => {
+                registerForm.classList.add('hidden');
+                loginForm.classList.remove('hidden');
+            });
+            loginFormElement.addEventListener('submit', handleLogin);
+            registerFormElement.addEventListener('submit', handleRegister);
+            logoutBtn.addEventListener('click', handleLogout);
+            
+            // View Mode Toggle
+            desktopViewBtn.addEventListener('click', () => {
+                appWrapper.classList.remove('mobile-view');
+                desktopViewBtn.classList.add('bg-blue-100', 'text-blue-600');
+                mobileViewBtn.classList.remove('bg-blue-100', 'text-blue-600');
+            });
+            mobileViewBtn.addEventListener('click', () => {
+                appWrapper.classList.add('mobile-view');
+                mobileViewBtn.classList.add('bg-blue-100', 'text-blue-600');
+                desktopViewBtn.classList.remove('bg-blue-100', 'text-blue-600');
+            });
+            
+            // Categories
+            addCategoryBtn.addEventListener('click', handleCategorySubmit);
+            newCategoryNameInput.addEventListener('keypress', (e) => e.key === 'Enter' && handleCategorySubmit());
+            selectAllCategoriesCheckbox.addEventListener('change', (e) => {
+                const isSelected = e.target.checked;
+                localCategoriesCache.forEach(cat => cat.selectedForReport = isSelected);
+                renderCategories(localCategoriesCache);
+                renderSummary();
+            });
+
+            // Expenses
+            addExpenseItemBtn.addEventListener('click', handleExpenseSubmit);
+            
+            // Views
+            backToCategoriesBtn.addEventListener('click', switchToMainView);
+
+            // Modals
+            messageModalCloseBtn.addEventListener('click', hideMessage);
+            reportModal.addEventListener('click', (e) => e.target === reportModal && hideReportModal());
+            closeReportModalBtn.addEventListener('click', hideReportModal);
+            printReportBtn.addEventListener('click', printReport);
+            copyReportBtn.addEventListener('click', copyReport);
+            generateReportBtn.addEventListener('click', showReportModal);
+
+            // Confirm Modal
+            confirmModalCancelBtn.addEventListener('click', () => {
+                if (confirmResolver) confirmResolver(false);
+                hideConfirm();
+            });
+            confirmModalOkBtn.addEventListener('click', () => {
+                if (confirmResolver) confirmResolver(true);
+                hideConfirm();
+            });
+        }
+        
+        // --- Initial Load ---
+        document.addEventListener('DOMContentLoaded', () => {
+            setupEventListeners();
+            initializeFirebaseApp();
+            handleInitialAuth(); // Special handling for Canvas environment
+        });
+    </script>
+</body>
+</html>
