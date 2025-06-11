@@ -150,7 +150,7 @@
 
             <!-- Main Content -->
             <main class="container mx-auto max-w-7xl p-4 sm:p-6 lg:p-8">
-                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                 <div id="main-view-grid" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <!-- Left Column -->
                     <div class="lg:col-span-2 space-y-8">
                         <!-- Category Management -->
@@ -321,8 +321,11 @@
         let app, auth, db;
         let userId = null; 
         let localCategoriesCache = []; 
-        let listeners = []; // Array to hold all active listeners
         let confirmResolver = null;
+
+        // **BUG FIX:** Listener Management Rework
+        let mainListeners = [];
+        let expenseViewListener = null;
 
         // === DOM Elements ===
         const loadingOverlay = document.getElementById('loading-overlay');
@@ -344,6 +347,7 @@
         const logoutBtn = document.getElementById('logout-btn');
         const desktopViewBtn = document.getElementById('desktop-view-btn');
         const mobileViewBtn = document.getElementById('mobile-view-btn');
+        const mainViewGrid = document.getElementById('main-view-grid');
 
         // Categories
         const newCategoryNameInput = document.getElementById('new-category-name');
@@ -360,8 +364,6 @@
         const editingExpenseIdInput = document.getElementById('editing-expense-id');
 
         // Views
-        const categoriesSection = document.getElementById('categories-section');
-        const addExpenseFormSection = document.getElementById('add-expense-form-section');
         const expensesSection = document.getElementById('expenses-section');
         const currentCategoryNameSpan = document.getElementById('current-category-name');
         const expenseItemsListDiv = document.getElementById('expense-items-list');
@@ -426,6 +428,17 @@
             return amount.toLocaleString('th-TH', {minimumFractionDigits: digits, maximumFractionDigits: digits});
         };
 
+        // **BUG FIX:** New Listener Management
+        function detachAllListeners() {
+            mainListeners.forEach(unsubscribe => unsubscribe());
+            mainListeners = [];
+            if (expenseViewListener) {
+                expenseViewListener();
+                expenseViewListener = null;
+            }
+            console.log("All Firestore listeners detached.");
+        }
+
         // === Firebase Initialization & Auth Handling ===
         function initializeFirebaseApp() {
             try {
@@ -446,7 +459,7 @@
 
         function setupAuthListener() {
             onAuthStateChanged(auth, async (user) => {
-                detachAllListeners(); // Clear old listeners on auth state change
+                detachAllListeners(); // Clear old listeners on any auth state change
                 if (user) {
                     // User is signed in
                     userId = user.uid;
@@ -454,7 +467,7 @@
                     authSection.classList.add('hidden');
                     appSection.classList.remove('hidden');
                     showLoading(true, 'กำลังดึงข้อมูลของคุณ...');
-                    await initializeAppData();
+                    await initializeAppData(); // This now ONLY loads data.
                     showLoading(false);
                 } else {
                     // User is signed out
@@ -470,7 +483,6 @@
         async function handleInitialAuth() {
             showLoading(true, "กำลังตรวจสอบการล็อกอิน...");
             try {
-                // For Google's Canvas environment
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 }
@@ -500,7 +512,6 @@
             createUserWithEmailAndPassword(auth, email, password)
                 .then((userCredential) => {
                     showMessage("เย้!", `สมัครสมาชิกสำเร็จแล้ว ยินดีต้อนรับ ${userCredential.user.email}!`, "success");
-                    // onAuthStateChanged will handle UI switching
                 })
                 .catch((error) => {
                     console.error("Register error:", error);
@@ -516,9 +527,6 @@
 
             showLoading(true, "กำลังเข้าสู่ระบบ...");
             signInWithEmailAndPassword(auth, email, password)
-                .then((userCredential) => {
-                    // onAuthStateChanged will handle everything
-                })
                 .catch((error) => {
                     console.error("Login error:", error);
                      showMessage("ล็อกอินไม่ได้", "อีเมลหรือรหัสผ่านผิดพลาดว่ะเพื่อน ลองดูใหม่ดิ๊", "error");
@@ -530,29 +538,23 @@
             showLoading(true, "กำลังออกจากระบบ...");
             signOut(auth).catch((error) => {
                  showMessage("Error", "ออกจากระบบไม่ได้แฮะ: " + error.message, "error");
-            }).finally(() => showLoading(false));
+            }).finally(() => {
+                showLoading(false);
+                switchToMainView(); // Ensure UI resets to main view on logout
+            });
         }
 
         // === App Data Initialization ===
         async function initializeAppData() {
             if (!userId) return;
-            // Reset UI state for new user
             resetCategoryForm();
             resetExpenseForm();
-            switchToMainView();
-            // Load data
+            // **BUG FIX:** Removed the call to switchToMainView() from here to prevent loops.
             await Promise.all([
                 loadCategories(),
                 loadAllExpensesForSummary()
             ]);
             renderSummary();
-        }
-
-        // === Listener Management ===
-        function detachAllListeners() {
-            listeners.forEach(unsubscribe => unsubscribe());
-            listeners = [];
-            console.log("All Firestore listeners detached.");
         }
         
         // === Firebase Path helpers ===
@@ -580,7 +582,7 @@
                 console.error("Error loading categories:", error);
                 showMessage("Error", `โหลดหมวดหมู่ไม่ได้: ${error.message}`, "error");
             });
-            listeners.push(unsubscribe); // Add to listeners array
+            mainListeners.push(unsubscribe); // **BUG FIX:** Add to main listeners
         }
 
         function renderCategories(categoriesData) {
@@ -610,7 +612,6 @@
                     <button class="delete-category-btn btn btn-danger btn-sm !p-2" title="ลบหมวดหมู่"><i class="fa-solid fa-trash-can"></i></button>
                 `;
                 
-                // Event Listeners
                 left.querySelector('.category-select-checkbox').addEventListener('change', (e) => toggleCategoryReportSelection(category.id, e.target.checked));
                 left.querySelector('.category-name').addEventListener('click', () => switchToExpenseView(category.id, category.name));
                 right.querySelector('.edit-category-btn').addEventListener('click', () => startEditCategoryName(category));
@@ -637,16 +638,8 @@
             if (totalCategories === 0) return;
             
             const selectedCount = localCategoriesCache.filter(cat => cat.selectedForReport).length;
-            if (selectedCount === 0) {
-                selectAllCategoriesCheckbox.checked = false;
-                selectAllCategoriesCheckbox.indeterminate = false;
-            } else if (selectedCount === totalCategories) {
-                selectAllCategoriesCheckbox.checked = true;
-                selectAllCategoriesCheckbox.indeterminate = false;
-            } else {
-                selectAllCategoriesCheckbox.checked = false;
-                selectAllCategoriesCheckbox.indeterminate = true;
-            }
+            selectAllCategoriesCheckbox.checked = selectedCount === totalCategories;
+            selectAllCategoriesCheckbox.indeterminate = selectedCount > 0 && selectedCount < totalCategories;
         }
         
         async function handleCategorySubmit() {
@@ -692,14 +685,11 @@
                 showLoading(true, 'กำลังลบ...');
                 try {
                     const batch = writeBatch(db);
-                    // Delete category doc
                     batch.delete(categoryDocRef(id));
-                    // Query and delete all expenses in this category
                     const q = query(expensesCollectionRef(), where("categoryId", "==", id));
                     const expensesSnapshot = await getDocs(q);
                     expensesSnapshot.forEach(doc => batch.delete(doc.ref));
                     await batch.commit();
-
                     showMessage("สำเร็จ!", `ลบหมวดหมู่ "${name}" เรียบร้อย`, "success");
                     if (expensesSection.dataset.currentViewingCategoryId === id) {
                         switchToMainView(); 
@@ -734,13 +724,20 @@
             }, (error) => {
                 console.error("Error loading all expenses:", error);
             });
-            listeners.push(unsubscribe); // Add to listeners array
+            mainListeners.push(unsubscribe); // **BUG FIX:** Add to main listeners
         }
 
+        // **BUG FIX:** New function to load expenses for a single category view
         function loadExpensesForCategory(categoryId) {
             if (!userId) return;
+            
+            // Unsubscribe from previous expense view listener if it exists
+            if (expenseViewListener) {
+                expenseViewListener();
+            }
+
             const q = query(expensesCollectionRef(), where("categoryId", "==", categoryId), orderBy("createdAt", "desc"));
-            const unsubscribe = onSnapshot(q, (snapshot) => {
+            expenseViewListener = onSnapshot(q, (snapshot) => {
                 const exps = [];
                 snapshot.forEach(doc => exps.push({ id: doc.id, ...doc.data() }));
                 renderExpenseItems(exps, categoryId);
@@ -748,7 +745,6 @@
                 console.error(`Error loading expenses for category ${categoryId}:`, error);
                 expenseItemsListDiv.innerHTML = '<p class="text-red-500 text-center py-4">เกิดข้อผิดพลาดในการโหลดรายการ</p>';
             });
-            listeners.push(unsubscribe); // Add to listeners array
         }
         
         function renderExpenseItems(expensesData) {
@@ -855,36 +851,29 @@
         }
 
         // === View Switching ===
+        // **BUG FIX:** Reworked view switching logic
         function switchToExpenseView(categoryId, categoryName) {
-            // Detach main page listeners to avoid conflicts
-            detachAllListeners();
-            // Load specific listeners for this view
-            loadExpensesForCategory(categoryId);
+            loadExpensesForCategory(categoryId); // Set up listener for this view
             
             currentCategoryNameSpan.textContent = categoryName;
             expensesSection.dataset.currentViewingCategoryId = categoryId; 
 
-            categoriesSection.classList.add('hidden');
-            addExpenseFormSection.classList.add('hidden');
-            document.querySelector('.lg\\:col-span-1').classList.add('hidden'); // Hide summary column
-            document.querySelector('.lg\\:col-span-2').classList.replace('lg:col-span-2', 'lg:col-span-3'); // Expand main column
+            mainViewGrid.classList.add('hidden');
             expensesSection.classList.remove('hidden');
             expensesSection.scrollIntoView({ behavior: 'smooth' });
         }
 
         function switchToMainView() {
-             // Detach view-specific listeners
-            detachAllListeners();
-            // Re-initialize main app listeners
-            initializeAppData();
-
+            // Unsubscribe from the specific expense view listener
+            if (expenseViewListener) {
+                expenseViewListener();
+                expenseViewListener = null;
+            }
+            
             expensesSection.classList.add('hidden');
             expensesSection.dataset.currentViewingCategoryId = '';
 
-            categoriesSection.classList.remove('hidden');
-            addExpenseFormSection.classList.remove('hidden');
-            document.querySelector('.lg\\:col-span-1').classList.remove('hidden'); // Show summary column
-            document.querySelector('.lg\\:col-span-3')?.classList.replace('lg:col-span-3', 'lg:col-span-2'); // Restore main column
+            mainViewGrid.classList.remove('hidden');
             resetExpenseForm(); 
         }
         
@@ -899,7 +888,7 @@
                 }
             });
             const totalYearly = totalMonthly * 12;
-            const totalDaily = totalMonthly / 30.4375; // More accurate average
+            const totalDaily = totalMonthly / 30.4375;
 
             totalDailyExpenseSpan.textContent = `${formatCurrency(totalDaily)} บ.`;
             totalMonthlyExpenseSpan.textContent = `${formatCurrency(totalMonthly)} บ.`;
@@ -912,9 +901,11 @@
             const selectedCats = localCategoriesCache.filter(c => c.selectedForReport);
             
             if (selectedCats.length === 0) return "ยังไม่ได้เลือกหมวดหมู่สำหรับทำรายงานเลยเพื่อน";
+            let hasExpenses = false;
 
             selectedCats.forEach(cat => {
                 if (cat.expenses && cat.expenses.length > 0) {
+                    hasExpenses = true;
                     text += `หมวดหมู่: ${cat.name}\n`;
                     let catTotal = 0;
                     cat.expenses.forEach(exp => {
@@ -926,7 +917,7 @@
                 }
             });
             
-            if(grandTotal === 0) return "หมวดหมู่ที่เลือกไว้ยังไม่มีรายจ่ายเลยว่ะ";
+            if(!hasExpenses) return "หมวดหมู่ที่เลือกไว้ยังไม่มีรายจ่ายเลยว่ะ";
 
             text += `============================\nยอดรวมทั้งหมด:\n`;
             text += `รายวัน (เฉลี่ย): ${formatCurrency(grandTotal / 30.4375)} บ.\n`;
@@ -1015,7 +1006,7 @@
             printWindow.document.write(content);
             printWindow.document.write('</body></html>');
             printWindow.document.close();
-            setTimeout(() => { // Timeout to allow content to render
+            setTimeout(() => {
                 printWindow.focus();
                 printWindow.print();
                 printWindow.close();
@@ -1097,7 +1088,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             setupEventListeners();
             initializeFirebaseApp();
-            handleInitialAuth(); // Special handling for Canvas environment
+            handleInitialAuth();
         });
     </script>
 </body>
